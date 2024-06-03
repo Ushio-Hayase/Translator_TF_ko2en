@@ -132,7 +132,6 @@ if __name__ == "__main__":
 
 
 
-
     with strategy.scope():
         model = Transformer(256 , 512, 4,
                             4, 119547, dropout=0.1)
@@ -154,6 +153,7 @@ if __name__ == "__main__":
         # np.save("y_train.npy", y_train_df)
         # np.save("x_valid.npy", x_valid_df)
         # np.save("y_valid.npy", y_valid_df)
+
 
 
         x_train_df = np.load("x_train.npy") 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
             train_loss.reset_state()
             train_accuracy.reset_state()
 
-            # inp -> portuguese, tar -> english
+            # inp -> korean, tar -> english
             for (batch, (inp, tar)) in enumerate(train_dataloader):
                 distributed_train_step(inp, tar)
 

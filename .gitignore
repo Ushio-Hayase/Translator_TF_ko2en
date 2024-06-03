@@ -16,3 +16,4 @@ ko.tsv
 *.npy
 *.out
 pyvenv.cfg
+id_rsa*
