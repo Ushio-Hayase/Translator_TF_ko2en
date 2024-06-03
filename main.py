@@ -96,10 +96,11 @@ def train_step(inp, tar):
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    loss
     acc = accuracy_function(tar_real, predictions)
 
-    return loss, acc
+    progbar.update(i, values=[('train_loss', loss),('train_acc', acc)])
+
+    return loss
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
@@ -119,9 +120,7 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 @tf.function
 def distributed_train_step(inp, tar, i):
-    per_replica_losses, acc = strategy.run(train_step, args=(inp, tar))
-
-    progbar.update(i, values=[('train_loss', per_replica_losses),('train_acc', acc)])
+    per_replica_losses = strategy.run(train_step, args=(inp, tar))
 
     return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
                             axis=None)
