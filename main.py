@@ -11,7 +11,7 @@ import numpy as np
 from data import Dataloader
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 
 # x_train_df = ""
 # y_train_df = ""
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
         learning_rate = CustomSchedule(256)
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
+        optimizer = tf.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                             epsilon=1e-9)
 
 
@@ -170,8 +170,7 @@ if __name__ == "__main__":
 
         checkpoint_path = "./checkpoints/train"
 
-        ckpt = tf.train.Checkpoint(transformer=model,
-                                optimizer=optimizer)
+        ckpt = tf.train.Checkpoint(transformer=model)
 
         ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
@@ -185,7 +184,7 @@ if __name__ == "__main__":
         
 
         for epoch in range(10):
-            progbar = tf.keras.utils.Progbar(train_dataloader//BATCH_SIZE, stateful_metrics=metrics_names)
+            progbar = tf.keras.utils.Progbar(train_dataloader.__len__()//BATCH_SIZE, stateful_metrics=metrics_names)
             start = time.time()
 
             # inp -> korean, tar -> english
