@@ -120,6 +120,10 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def distributed_train_step(inp, tar, i):
     per_replica_losses, acc = strategy.run(train_step, args=(inp, tar))
 
+    loss = tf.reduce_sum(per_replica_losses)
+    acc = tf.reduce_sum(acc)
+
+    progbar.update(batch, values=[('train_loss', loss), ('train_acc', acc)])
     return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
                             axis=None)
 
@@ -181,13 +185,13 @@ if __name__ == "__main__":
         
 
         for epoch in range(10):
-            progbar = tf.keras.utils.Progbar(train_dataloader.__len__())
+            progbar = tf.keras.utils.Progbar(train_dataloader.__len__(), stateful_metrics=metrics_names)
             start = time.time()
 
             # inp -> korean, tar -> english
             for (batch, (inp, tar)) in enumerate(train_dataloader):
                 distributed_train_step(inp, tar, batch)
-                progbar.update(batch)
+                
 
                 
 
