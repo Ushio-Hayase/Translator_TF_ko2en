@@ -96,9 +96,10 @@ def train_step(inp, tar):
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    acc = accuracy_function(tar_real, predictions)
+    train_loss(loss)
+    train_accuracy(accuracy_function(tar_real, predictions))
 
-    return loss, acc
+    return loss
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
@@ -117,13 +118,8 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 @tf.function
-def distributed_train_step(inp, tar, i):
-    per_replica_losses, acc = strategy.run(train_step, args=(inp, tar))
-
-    loss = tf.reduce_sum(per_replica_losses)
-    acc = tf.reduce_sum(acc)
-
-    progbar.update(batch, values=[('train_loss', loss), ('train_acc', acc)])
+def distributed_train_step(inp, tar):
+    per_replica_losses = strategy.run(train_step, args=(inp, tar))
     return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
                             axis=None)
 
@@ -136,17 +132,20 @@ if __name__ == "__main__":
 
 
 
+
     with strategy.scope():
         model = Transformer(256 , 512, 4,
                             4, 119547, dropout=0.1)
 
         # model = tf.keras.models.load_model("model", custom_objects={"metric": metric, "loss_func": loss_func})
 
+        train_loss = tf.keras.metrics.Mean(name='train_loss')
+        train_accuracy = tf.keras.metrics.Mean(name='train_accuracy')
 
         loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
         learning_rate = CustomSchedule(256)
 
-        optimizer = tf.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
+        optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                             epsilon=1e-9)
 
 
@@ -155,7 +154,6 @@ if __name__ == "__main__":
         # np.save("y_train.npy", y_train_df)
         # np.save("x_valid.npy", x_valid_df)
         # np.save("y_valid.npy", y_valid_df)
-
 
 
         x_train_df = np.load("x_train.npy") 
@@ -171,7 +169,8 @@ if __name__ == "__main__":
 
         checkpoint_path = "./checkpoints/train"
 
-        ckpt = tf.train.Checkpoint(transformer=model)
+        ckpt = tf.train.Checkpoint(transformer=model,
+                                optimizer=optimizer)
 
         ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
@@ -180,24 +179,25 @@ if __name__ == "__main__":
             ckpt.restore(ckpt_manager.latest_checkpoint)
         print('Latest checkpoint restored!!')
 
-        metrics_names = ['train_loss', 'train_acc']
-        
-        
 
         for epoch in range(10):
-            progbar = tf.keras.utils.Progbar(train_dataloader.__len__(), stateful_metrics=metrics_names)
             start = time.time()
 
-            # inp -> korean, tar -> english
-            for (batch, (inp, tar)) in enumerate(train_dataloader):
-                distributed_train_step(inp, tar, batch)
-                
+            train_loss.reset_state()
+            train_accuracy.reset_state()
 
-                
+            # inp -> portuguese, tar -> english
+            for (batch, (inp, tar)) in enumerate(train_dataloader):
+                distributed_train_step(inp, tar)
+
+                if batch % 50 == 0:
+                    print(f'Epoch {epoch + 1} Batch : {batch} Loss : {train_loss.result():.4f} Accuracy : {train_accuracy.result():.4f}')
 
             if (epoch + 1) % 5 == 0:
                 ckpt_save_path = ckpt_manager.save()
                 print(f'Saving checkpoint for epoch {epoch+1} at {ckpt_save_path}')
+
+            print(f'Epoch : {epoch + 1} Loss : {train_loss.result():.4f} : Accuracy {train_accuracy.result():.4f}')
 
             print(f'Time taken for 1 epoch: {time.time() - start:.2f} secs\n')
 
