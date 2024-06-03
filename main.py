@@ -11,7 +11,7 @@ import numpy as np
 from data import Dataloader
 
 #tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 # x_train_df = ""
 # y_train_df = ""
