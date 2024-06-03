@@ -98,9 +98,7 @@ def train_step(inp, tar):
 
     acc = accuracy_function(tar_real, predictions)
 
-    progbar.update(i, values=[('train_loss', loss),('train_acc', acc)])
-
-    return loss
+    return loss, acc
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
@@ -120,7 +118,11 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 @tf.function
 def distributed_train_step(inp, tar, i):
-    per_replica_losses = strategy.run(train_step, args=(inp, tar))
+    per_replica_losses, acc = strategy.run(train_step, args=(inp, tar))
+    acc= tf.reduce_mean(tf.cast(acc, tf.float32))
+    per_replica_losses = tf.reduce_mean(tf.cast(per_replica_losses, tf.float32))
+
+    progbar.update(i, values=[('train_loss', per_replica_losses),('train_acc', acc)])
 
     return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
                             axis=None)
