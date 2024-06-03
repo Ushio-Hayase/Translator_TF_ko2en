@@ -1,16 +1,16 @@
 import os
 import time
 import tensorflow as tf
-import urllib
-from kobert_tokenizer import KoBERTTokenizer
-from transformers import BertTokenizer
+#import urllib
+#from kobert_tokenizer import KoBERTTokenizer
+#from transformers import BertTokenizer
 
 from modules.Transformer import Transformer
 import pandas as pd
 import numpy as np
 from data import Dataloader
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+#tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 BATCH_SIZE = 16
 
 # x_train_df = ""
