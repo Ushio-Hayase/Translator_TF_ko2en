@@ -169,8 +169,7 @@ if __name__ == "__main__":
 
         checkpoint_path = "./checkpoints/train"
 
-        ckpt = tf.train.Checkpoint(transformer=model,
-                                optimizer=optimizer)
+        ckpt = tf.train.Checkpoint(transformer=model)
 
         ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
