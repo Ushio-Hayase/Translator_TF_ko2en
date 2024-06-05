@@ -79,13 +79,13 @@ train_step_signature = [
 def train_step(inp, tar):
     pad_left = tf.constant([[101]], dtype=tf.int64)
     pad_left = tf.repeat(pad_left, BATCH_SIZE, axis=0)
-    tar_inp = tar[:, :-1]
+    tar_inp = tar[:, 1:]
     tar_inp = tf.concat([pad_left, tar_inp], axis=-1)
     
 
     pad_right = tf.constant([[102]], dtype=tf.int64)
     pad_right = tf.repeat(pad_right, BATCH_SIZE, axis=0)
-    tar_real = tar[:, 1:]
+    tar_real = tar[:, :-1]
     tar_real = tf.concat([tar_real, pad_right], axis=-1)
 
     with tf.GradientTape() as tape:
@@ -150,6 +150,7 @@ if __name__ == "__main__":
 
 
 
+
         # np.save("x_train.npy", x_train_df)
         # np.save("y_train.npy", y_train_df)
         # np.save("x_valid.npy", x_valid_df)
@@ -171,15 +172,17 @@ if __name__ == "__main__":
 
         ckpt = tf.train.Checkpoint(transformer=model)
 
-        ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+        ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=1)
+
+        bar = tf.keras.utils.Progbar(train_dataloader.__len__(),stateful_metrics=['loss', 'acc'])
 
         # if a checkpoint exists, restore the latest checkpoint.
         if ckpt_manager.latest_checkpoint:
             ckpt.restore(ckpt_manager.latest_checkpoint)
-        print('Latest checkpoint restored!!')
+            print('Latest checkpoint restored!!')
 
 
-        for epoch in range(10):
+        for epoch in range(5):
             start = time.time()
 
             train_loss.reset_state()
@@ -189,15 +192,18 @@ if __name__ == "__main__":
             for (batch, (inp, tar)) in enumerate(train_dataloader):
                 distributed_train_step(inp, tar)
 
-                if batch % 50 == 0:
-                    print(f'Epoch {epoch + 1} Batch : {batch} Loss : {train_loss.result():.4f} Accuracy : {train_accuracy.result():.4f}')
+                # if batch % 50 == 0:
+                #     print(f'Epoch {epoch + 1} Batch : {batch} Loss : {train_loss.result():.4f} Accuracy : {train_accuracy.result():.4f}')
 
-            if (epoch + 1) % 5 == 0:
-                ckpt_save_path = ckpt_manager.save()
-                print(f'Saving checkpoint for epoch {epoch+1} at {ckpt_save_path}')
+                bar.update(batch+1, values=[('loss', train_loss.result()), ("acc", train_accuracy.result())])
+            
+            ckpt_save_path = ckpt_manager.save()
+            model.save_weights(f'./checkpoints/{epoch}.weights.h5')
+            print(f'Saving checkpoint for epoch {epoch+1} at {ckpt_save_path}')
 
             print(f'Epoch : {epoch + 1} Loss : {train_loss.result():.4f} : Accuracy {train_accuracy.result():.4f}')
 
             print(f'Time taken for 1 epoch: {time.time() - start:.2f} secs\n')
 
-    model.save("model.h5")
+    model.save_weghits("model.h5")
+    model.save("model.keras")

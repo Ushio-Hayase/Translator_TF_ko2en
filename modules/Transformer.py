@@ -31,7 +31,7 @@ class Transformer(K.Model):
     def call(self, inputs, training=None, mask=None):
         input, dec_in = inputs[0], inputs[1]
 
-        input, dec_in = self.embd_enc(input), self.embd_dec(dec_in)
+        x, dec_in_after = self.embd_enc(input), self.embd_dec(dec_in)
 
         enc_pad_mask = self.enc_pad_mask(input)
 
@@ -39,11 +39,11 @@ class Transformer(K.Model):
 
         dec_pad_mask = self.dec_pad_mask(input)
 
-        enc_out = self.encoder({"input": input, "mask": enc_pad_mask})
+        enc_out = self.encoder({"input": x, "mask": enc_pad_mask})
 
         
 
-        dec_out = self.decoder({"input": dec_in, "encoder_output": enc_out,
+        dec_out = self.decoder({"input": dec_in_after, "encoder_output": enc_out,
                                 "look_ahead_mask": look_ahead_mask, "padding_mask": dec_pad_mask})
 
         return self.ffnn(dec_out)

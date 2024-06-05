@@ -17,3 +17,4 @@ ko.tsv
 *.out
 pyvenv.cfg
 id_rsa*
+*weights*
