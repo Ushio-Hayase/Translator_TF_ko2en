@@ -76,17 +76,25 @@ train_step_signature = [
     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
 ]
 
-def train_step(inp, tar):
+def train_step(inp, tar, train=True):
     pad_left = tf.constant([[101]], dtype=tf.int64)
     pad_left = tf.repeat(pad_left, BATCH_SIZE, axis=0)
     tar_inp = tar[:, 1:]
     tar_inp = tf.concat([pad_left, tar_inp], axis=-1)
     
 
-    pad_right = tf.constant([[102]], dtype=tf.int64)
-    pad_right = tf.repeat(pad_right, BATCH_SIZE, axis=0)
-    tar_real = tar[:, :-1]
-    tar_real = tf.concat([tar_real, pad_right], axis=-1)
+    tar_real = tar
+    mask = tf.equal(tar_real, 102)
+    indices = tf.where(mask)
+
+    if tf.size(indices) > 0:
+        first_index = indices[0]
+        tar_real = tf.tensor_scatter_nd_update(tar_real, [first_index], [102])
+    else:
+        pad_right = tf.constant([[102]], dtype=tf.int64)
+        pad_right = tf.repeat(pad_right, BATCH_SIZE, axis=0)
+        tar_real = tar[:, :-1]
+        tar_real = tf.concat([tar_real, pad_right], axis=-1)
 
     with tf.GradientTape() as tape:
         predictions = model([inp, tar_inp],
@@ -96,8 +104,12 @@ def train_step(inp, tar):
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    train_loss(loss)
-    train_accuracy(accuracy_function(tar_real, predictions))
+    if train:
+        train_loss(loss)
+        train_accuracy(accuracy_function(tar_real, predictions))
+    else:
+        valid_loss(loss)
+        valid_accuracy(accuracy_function(tar_real, predictions))
 
     return loss
 
@@ -118,8 +130,8 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 @tf.function
-def distributed_train_step(inp, tar):
-    per_replica_losses = strategy.run(train_step, args=(inp, tar))
+def distributed_train_step(inp, tar,train=True):
+    per_replica_losses = strategy.run(train_step, args=(inp, tar,train))
     return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
                             axis=None)
 
@@ -141,6 +153,8 @@ if __name__ == "__main__":
 
         train_loss = tf.keras.metrics.Mean(name='train_loss')
         train_accuracy = tf.keras.metrics.Mean(name='train_accuracy')
+        valid_loss = tf.keras.metrics.Mean(name='val_loss')
+        valid_accuracy = tf.keras.metrics.Mean(name='val_accuracy')
 
         loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
         learning_rate = CustomSchedule(256)
@@ -187,6 +201,8 @@ if __name__ == "__main__":
 
             train_loss.reset_state()
             train_accuracy.reset_state()
+            valid_loss.reset_state()
+            valid_accuracy.reset_state()
 
             # inp -> portuguese, tar -> english
             for (batch, (inp, tar)) in enumerate(train_dataloader):
@@ -196,6 +212,14 @@ if __name__ == "__main__":
                 #     print(f'Epoch {epoch + 1} Batch : {batch} Loss : {train_loss.result():.4f} Accuracy : {train_accuracy.result():.4f}')
 
                 bar.update(batch+1, values=[('loss', train_loss.result()), ("acc", train_accuracy.result())])
+
+            for step, (x_batch_val, y_batch_val) in enumerate(vaild_dataloader):
+                distributed_train_step(inp, tar)
+                values = [('train_loss', train_loss.result()),\
+                           ('train_acc', train_accuracy.result()), ('val_loss', valid_loss.result()),\
+                              ('val_acc', valid_accuracy.result())]
+
+                bar.update(step + 1, values=values, finalize=True)
             
             ckpt_save_path = ckpt_manager.save()
             model.save_weights(f'./checkpoints/{epoch}.weights.h5')
