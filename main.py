@@ -70,7 +70,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             with tqdm.tqdm(valid_dataloader, unit="batch") as tepoch:
                 for (enc_in, tar) in tepoch:
-                    tepoch.set_description(f"Epoch {epoch+1}")
+                    tepoch.set_description(f"Valid : Epoch {epoch+1}")
 
                     enc_in, tar = enc_in.cuda(), tar.cuda()
 
