@@ -66,5 +66,33 @@ if __name__ == "__main__":
 
 
                 tepoch.set_postfix(loss=loss.item(), acc=acc)
+
+        with torch.no_grad():
+            with tqdm.tqdm(valid_dataloader, unit="batch") as tepoch:
+                for (enc_in, tar) in tepoch:
+                    tepoch.set_description(f"Epoch {epoch+1}")
+
+                    enc_in, tar = enc_in.cuda(), tar.cuda()
+
+                    optimizer.zero_grad()
+
+                    pad = torch.tensor([[PAD]])
+                    pad = pad.repeat((BATCH_SIZE, 1))
+
+                    dec_in = tar[:, :-1]
+                    tar_real = tar[:, 1:]
+
+                    # dec_in = torch.cat([dec_in, pad], dim=-1)
+                    # tar_real = torch.cat([pad, tar_real], dim=-1)
+
+                    out = model(enc_in, dec_in)
+                    loss = loss_object(out, tar_real)
+                    loss.backward()
+                    optimizer.step()
+                    
+                    acc = acc_fn(out, tar_real)
+
+
+                    tepoch.set_postfix(val_loss=loss.item(), val_acc=acc)
             
 
